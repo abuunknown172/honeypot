@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
 import time
 
 from memory import Memory
@@ -8,37 +7,33 @@ from extractor import extract_intelligence
 from agent import generate_reply
 
 app = FastAPI()
-API_KEY = "test123"  # change later
-
-from typing import Optional
-
-class Message(BaseModel):
-    message: str
-    conversation_id: Optional[str] = "default"
+API_KEY = "test123"
 
 @app.post("/honeypot")
-async def honeypot(msg: Message, request: Request):
+async def honeypot(request: Request):
 
     api_key = request.headers.get("x-api-key")
     if api_key != API_KEY:
         return {"error": "Unauthorized"}
 
-    memory = Memory(msg.conversation_id)
-    memory.add("user", msg.message)
+    # READ RAW TEXT BODY (important)
+    msg_text = (await request.body()).decode("utf-8")
 
-    # Full conversation text
+    conversation_id = "default"
+
+    memory = Memory(conversation_id)
+    memory.add("user", msg_text)
+
     full_text = " ".join([m["content"] for m in memory.get()])
-
     scam_detected = detect_scam(full_text)
 
     if scam_detected:
-        time.sleep(2)  # human delay
+        time.sleep(2)
         reply = generate_reply(memory)
         memory.add("assistant", reply)
     else:
         reply = "Okay."
 
-    # Extract intelligence from whole chat
     full_text = " ".join([m["content"] for m in memory.get()])
     intel = extract_intelligence(full_text)
 
