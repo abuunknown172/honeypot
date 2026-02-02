@@ -10,9 +10,11 @@ from agent import generate_reply
 app = FastAPI()
 API_KEY = "test123"  # change later
 
+from typing import Optional
+
 class Message(BaseModel):
-    conversation_id: str
     message: str
+    conversation_id: Optional[str] = "default"
 
 @app.post("/honeypot")
 async def honeypot(msg: Message, request: Request):
