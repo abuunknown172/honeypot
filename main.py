@@ -52,7 +52,7 @@ async def honeypot(request: Request):
 
     memory = Memory(session_id)
 
-    # Load previous conversation into memory
+    # Load previous conversation
     for msg in history:
         memory.add(msg["sender"], msg["text"])
 
@@ -60,7 +60,6 @@ async def honeypot(request: Request):
     memory.add("user", message)
 
     full_text = " ".join([m["content"] for m in memory.get()])
-
     scam_detected = detect_scam(full_text)
 
     if scam_detected:
@@ -74,11 +73,11 @@ async def honeypot(request: Request):
     full_text = " ".join([m["content"] for m in memory.get()])
     intel = extract_intelligence(full_text)
 
-    # 🚨 Mandatory GUVI callback
+    # 🚨 Mandatory GUVI callback (ONLY when scam detected)
     if scam_detected:
         send_final_callback(session_id, memory, intel)
 
-    # ✅ ONLY THIS RESPONSE TO EVALUATOR
+    # ✅ Required evaluator response
     return {
         "status": "success",
         "reply": reply
