@@ -53,7 +53,9 @@ async def honeypot(request: Request):
     memory = Memory(session_id)
 
     for msg in history:
-        memory.add(msg["sender"], msg["text"])
+        role = "user" if msg["sender"] == "scammer" else "assistant"
+        memory.add(role, msg["text"])
+
 
     memory.add("user", message)
 
