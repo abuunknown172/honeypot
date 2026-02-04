@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 import time
 import requests
+import threading
 
 from memory import Memory
 from detector import detect_scam
@@ -11,10 +12,10 @@ app = FastAPI()
 API_KEY = "test123"
 
 
-def send_final_callback(session_id, memory, intel):
+def send_final_callback(session_id, memory, intel, scam_detected):
     payload = {
         "sessionId": session_id,
-        "scamDetected": True,
+        "scamDetected": scam_detected,
         "totalMessagesExchanged": len(memory.get()),
         "extractedIntelligence": {
             "bankAccounts": intel.get("bank_accounts", []),
@@ -30,7 +31,7 @@ def send_final_callback(session_id, memory, intel):
         requests.post(
             "https://hackathon.guvi.in/api/updateHoneyPotFinalResult",
             json=payload,
-            timeout=5
+            timeout=3
         )
     except:
         pass
@@ -39,7 +40,6 @@ def send_final_callback(session_id, memory, intel):
 @app.post("/honeypot")
 async def honeypot(request: Request):
 
-    # 🔐 API KEY CHECK
     api_key = request.headers.get("x-api-key")
     if api_key != API_KEY:
         return {"status": "error", "message": "Unauthorized"}
@@ -52,33 +52,36 @@ async def honeypot(request: Request):
 
     memory = Memory(session_id)
 
-    # Load previous conversation
     for msg in history:
         memory.add(msg["sender"], msg["text"])
 
-    # Add latest scammer message
     memory.add("user", message)
 
     full_text = " ".join([m["content"] for m in memory.get()])
     scam_detected = detect_scam(full_text)
 
     if scam_detected:
-        time.sleep(2)
         reply = generate_reply(memory)
         memory.add("assistant", reply)
     else:
         reply = "Okay."
 
-    # Extract intelligence
+    # Prepare intelligence
     full_text = " ".join([m["content"] for m in memory.get()])
     intel = extract_intelligence(full_text)
 
-    # 🚨 Mandatory GUVI callback (ONLY when scam detected)
-    if scam_detected:
-        send_final_callback(session_id, memory, intel)
-
-    # ✅ Required evaluator response
-    return {
+    # 🔥 RETURN RESPONSE FIRST (critical)
+    response = {
         "status": "success",
         "reply": reply
     }
+
+    # 🔥 Run GUVI callback in background thread
+    if scam_detected:
+        threading.Thread(
+            target=send_final_callback,
+            args=(session_id, memory, intel, scam_detected),
+            daemon=True
+        ).start()
+
+    return response
